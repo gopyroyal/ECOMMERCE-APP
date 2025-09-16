@@ -1,0 +1,48 @@
+version: 0.2
+
+phases:
+  install:
+    commands:
+      - echo "Installing build tooling"
+      - node -v || true
+      - npm -v || true
+      - npm install -g npm@latest
+      - pip install --upgrade awscli || true
+
+  pre_build:
+    commands:
+      - echo "Logging in to Amazon ECR..."
+      - ACCOUNT_ID=$(aws sts get-caller-identity --query 'Account' --output text)
+      - ECR_URI="$ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$ECR_REPO_NAME"
+      - echo "ECR_URI=$ECR_URI"
+      - aws ecr get-login-password --region "$AWS_DEFAULT_REGION" | docker login --username AWS --password-stdin "$ECR_URI"
+
+  build:
+    commands:
+      - echo "Building backend image"
+      - docker build -t "$ECR_REPO_NAME:latest" backend
+      - docker tag "$ECR_REPO_NAME:latest" "$ECR_URI:latest"
+      - echo "Building frontend"
+      - cd frontend
+      - npm ci || npm install
+      - printf "VITE_API_URL=%s\n" "$VITE_API_URL" > .env
+      - npm run build
+      - cd ..
+
+  post_build:
+    commands:
+      - echo "Pushing image to ECR"
+      - docker push "$ECR_URI:latest"
+      - echo "Syncing frontend to S3"
+      - aws s3 sync frontend/dist "s3://$FRONTEND_BUCKET_NAME" --delete
+      - |
+        if [ -n "$CLOUDFRONT_DISTRIBUTION_ID" ]; then
+          aws cloudfront create-invalidation --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" --paths "/*"
+        else
+          echo "No CloudFront distribution id provided; skipping invalidation."
+        fi
+      - echo ok > im_a_placeholder.txt
+
+artifacts:
+  files:
+    - im_a_placeholder.txt
