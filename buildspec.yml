@@ -2,11 +2,12 @@ version: 0.2
 
 phases:
   install:
+    runtime-versions:
+      nodejs: 20
     commands:
       - echo "Installing build tooling"
-      - node -v || true
-      - npm -v || true
-      - npm install -g npm@latest
+      - node -v
+      - npm -v
       - pip install --upgrade awscli || true
 
   pre_build:
@@ -46,3 +47,4 @@ phases:
 artifacts:
   files:
     - im_a_placeholder.txt
+    
