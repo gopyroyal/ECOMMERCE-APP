@@ -1,0 +1,15 @@
+{
+  "name": "backend",
+  "version": "0.0.1",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node -e \"console.log('tests OK')\""
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "mysql2": "^3.9.7",
+    "bcryptjs": "^2.4.3"
+  }
+}
