@@ -1,47 +1,41 @@
 version: 0.2
 
-env:
-  variables:
-    AWS_DEFAULT_REGION: ap-south-1
-    ECR_REPO_NAME: gopi-capstone-backend
-    FRONTEND_BUCKET_NAME: gopi-capstone-frontend-$(echo $CODEBUILD_BUILD_ID | awk -F: '{print tolower($1$2$3)}' | tr -cd 'a-z0-9' | cut -c1-8)
-    CLOUDFRONT_DISTRIBUTION_ID: ""
-    VITE_API_URL: ""
-
 phases:
   install:
     commands:
       - echo "Installing build tooling"
+      - node -v || true
+      - npm -v || true
       - npm install -g npm@latest
-      - node -v && npm -v
-      - pip install awscli --upgrade || true
+      - pip install --upgrade awscli || true
+
   pre_build:
     commands:
       - echo "Logging in to Amazon ECR..."
-      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $(aws sts get-caller-identity --query 'Account' --output text).dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
       - ACCOUNT_ID=$(aws sts get-caller-identity --query 'Account' --output text)
       - ECR_URI="$ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$ECR_REPO_NAME"
-      - echo "ECR_URI=$ECR_URI"
+      - aws ecr get-login-password --region "$AWS_DEFAULT_REGION" | docker login --username AWS --password-stdin "$ECR_URI"
+
   build:
     commands:
       - echo "Building backend image"
-      - cd backend
-      - docker build -t $ECR_REPO_NAME .
-      - docker tag $ECR_REPO_NAME:latest $ECR_URI:latest
-      - cd ..
+      - docker build -t "$ECR_REPO_NAME:latest" backend
+      - docker tag "$ECR_REPO_NAME:latest" "$ECR_URI:latest"
       - echo "Building frontend"
       - cd frontend
       - npm ci || npm install
       - echo "VITE_API_URL=${VITE_API_URL}" > .env
       - npm run build
       - cd ..
+
   post_build:
     commands:
       - echo "Pushing image to ECR"
-      - docker push $ECR_URI:latest
-      - echo "Syncing frontend build to S3"
-      - aws s3 sync frontend/dist s3://$FRONTEND_BUCKET_NAME --delete
-      - if [ -n "$CLOUDFRONT_DISTRIBUTION_ID" ]; then aws cloudfront create-invalidation --distribution-id $CLOUDFRONT_DISTRIBUTION_ID --paths "/*"; fi
+      - docker push "$ECR_URI:latest"
+      - echo "Syncing frontend to S3"
+      - aws s3 sync frontend/dist "s3://$FRONTEND_BUCKET_NAME" --delete
+      - if [ -n "$CLOUDFRONT_DISTRIBUTION_ID" ]; then aws cloudfront create-invalidation --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" --paths "/*"; fi
+      - echo ok > im_a_placeholder.txt
 
 artifacts:
   files:
