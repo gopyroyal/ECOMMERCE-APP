@@ -1,9 +1,8 @@
-# Backend Dockerfile
-FROM public.ecr.aws/docker/library/node:18-alpine
+FROM node:20-alpine
 WORKDIR /app
-COPY package.json package-lock.json* /app/
-RUN npm ci || npm install
-COPY server.js /app/server.js
-COPY db-init.sql /app/db-init.sql
+COPY package.json ./
+RUN npm install --omit=dev
+COPY . .
+ENV NODE_ENV=production
 EXPOSE 3000
-CMD ["npm","start"]
+CMD ["node","server.js"]

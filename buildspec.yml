@@ -1,47 +1,40 @@
 version: 0.2
+env:
+  variables:
+    AWS_DEFAULT_REGION: ap-south-1
+    ECR_REPO_NAME: gopi-capstone-backend
+    FRONTEND_BUCKET_NAME: ""
+    CLOUDFRONT_DISTRIBUTION_ID: ""
+    VITE_API_URL: "/api"
 
 phases:
   install:
     runtime-versions:
       nodejs: 20
     commands:
-      - echo "Installing build tooling"
       - node -v
       - npm -v
       - pip install --upgrade awscli || true
-
   pre_build:
     commands:
-      - echo "Logging in to Amazon ECR..."
       - ACCOUNT_ID=$(aws sts get-caller-identity --query 'Account' --output text)
       - ECR_URI="$ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$ECR_REPO_NAME"
-      - echo "ECR_URI=$ECR_URI"
       - aws ecr get-login-password --region "$AWS_DEFAULT_REGION" | docker login --username AWS --password-stdin "$ECR_URI"
-
   build:
     commands:
-      - echo "Building backend image"
       - docker build -t "$ECR_REPO_NAME:latest" backend
       - docker tag "$ECR_REPO_NAME:latest" "$ECR_URI:latest"
-      - echo "Building frontend"
       - cd frontend
       - npm ci || npm install
       - printf "VITE_API_URL=%s\n" "$VITE_API_URL" > .env
       - npm run build
       - cd ..
-
   post_build:
     commands:
-      - echo "Pushing image to ECR"
       - docker push "$ECR_URI:latest"
-      - echo "Syncing frontend to S3"
-      - aws s3 sync frontend/dist "s3://$FRONTEND_BUCKET_NAME" --delete
-      - |
-        if [ -n "$CLOUDFRONT_DISTRIBUTION_ID" ]; then
-          aws cloudfront create-invalidation --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" --paths "/*"
-        fi
+      - '[ -n "$FRONTEND_BUCKET_NAME" ] && aws s3 sync frontend/dist "s3://$FRONTEND_BUCKET_NAME" --delete || true'
+      - '[ -n "$CLOUDFRONT_DISTRIBUTION_ID" ] && aws cloudfront create-invalidation --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" --paths "/*" || true'
       - printf '[{"name":"backend","imageUri":"%s"}]\n' "$ECR_URI:latest" > imagedefinitions.json
-
 artifacts:
   files:
     - imagedefinitions.json
