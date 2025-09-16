@@ -39,12 +39,9 @@ phases:
       - |
         if [ -n "$CLOUDFRONT_DISTRIBUTION_ID" ]; then
           aws cloudfront create-invalidation --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" --paths "/*"
-        else
-          echo "No CloudFront distribution id provided; skipping invalidation."
         fi
-      - echo ok > im_a_placeholder.txt
+      - printf '[{"name":"backend","imageUri":"%s"}]\n' "$ECR_URI:latest" > imagedefinitions.json
 
 artifacts:
   files:
-    - im_a_placeholder.txt
-    
+    - imagedefinitions.json
